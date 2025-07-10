@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hoja de Ejercicios de Multiplicación Interactiva</title>
+    <!-- Tailwind CSS (CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Required for Tailwind JIT -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React and ReactDOM (UMD versions from unpkg) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel (for in-browser JSX transpilation) - NOT for production -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Recharts dependencies (order matters) -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+    <script src="https://unpkg.com/d3-scale/dist/d3-scale.min.js"></script>
+    <script src="https://unpkg.com/d3-shape/dist/d3-shape.min.js"></script>
+    <!-- Recharts itself -->
+    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+
+    <!-- html2canvas and jspdf for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* Optional: Add any specific styles here if needed */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Adjust min-width as needed */
+            gap: 1.5rem; /* Gap between problems */
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        {/* Esto aparecerá si React no se carga correctamente */}
+        <p style="text-align: center; padding: 20px; color: red;">Cargando hoja de ejercicios... Si esto persiste, por favor, revisa la consola del navegador (F12) para ver errores.</p>
+    </div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Helper para obtener el rango de un multiplicador para agrupar en la gráfica
+        const getMultiplierRange = (multiplier) => {
+          if (multiplier >= 2 && multiplier <= 9) { // Multiplicadores de un dígito (Nivel 1)
+            return `Tabla del ${multiplier}`;
+          } else if (multiplier >= 10 && multiplier <= 99) { // Multiplicadores de dos dígitos (Nivel 2)
+            const start = Math.floor(multiplier / 10) * 10;
+            const end = start + 9;
+            return `${start}-${end}`;
+          } else if (multiplier >= 100 && multiplier <= 999) { // Multiplicadores de tres dígitos (Nivel 3)
+            const start = Math.floor(multiplier / 100) * 100;
+            const end = start + 99;
+            return `${start}-${end}`;
+          }
+          return 'Otros'; // Fallback para multiplicadores inesperados
+        };
+
+        // Función para generar un conjunto de 10 problemas de multiplicación únicos para una página
+        const generateProblems = (startId, level) => {
+          const problems = [];
+          const getRandomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+          for (let i = 0; i < 10; i++) { // Cambiado de 12 a 10 problemas por página
+            let num1, num2;
+            if (level === 1) {
+              // Nivel 1: 3 dígitos por 1 dígito
+              num1 = getRandomNumber(100, 999);
+              num2 = getRandomNumber(2, 9);
+            } else if (level === 2) {
+              // Nivel 2: 3 dígitos por 2 dígitos
+              num1 = getRandomNumber(100, 999);
+              num2 = getRandomNumber(10, 99);
+            } else if (level === 3) {
+              // Nivel 3: 3 dígitos por 3 dígitos
+              num1 = getRandomNumber(100, 999);
+              num2 = getRandomNumber(100, 999);
+            } else {
+              // Fallback o nivel por defecto
+              num1 = getRandomNumber(10, 99);
+              num2 = getRandomNumber(2, 9);
+            }
+
+            problems.push({
+              id: startId + i,
+              num1: num1,
+              num2: num2,
+              answer: num1 * num2,
+              level: level, // Almacenar el nivel para el seguimiento de estadísticas
+              num1Str: String(num1), // Store as string for digit access
+              num2Str: String(num2), // Store as string for digit access
+            });
+          }
+          return problems;
+        };
+
+        // Definir los datos para cada una de las páginas de ejercicios
+        const allPagesProblems = [];
+        // Páginas 1-12 (Nivel 1: 3 dígitos por 1 dígito) - 12 páginas de 10 problemas
+        for (let i = 0; i < 12; i++) {
+          allPagesProblems.push(generateProblems(i * 10 + 1, 1));
+        }
+        // Páginas 14-25 (Nivel 2: 3 dígitos por 2 dígitos) - 12 páginas de 10 problemas
+        for (let i = 0; i < 12; i++) {
+          allPagesProblems.push(generateProblems(12 * 10 + i * 10 + 1, 2));
+        }
+        // Páginas 27-38 (Nivel 3: 3 dígitos por 3 dígitos) - 12 páginas de 10 problemas
+        for (let i = 0; i < 12; i++) {
+          allPagesProblems.push(generateProblems(12 * 20 + i * 10 + 1, 3));
+        }
+
+        // Contenido específico para las secciones de datos curiosos para cada página
+        const pageSpecificContent = [
+          // Páginas 1-12 (ejercicios Nivel 1)
+          { mathFact: "El número cero (0) es el único número que no se puede representar con números romanos." },
+          { mathFact: "Un 'googol' es un número enorme: un 1 seguido de 100 ceros. ¡El nombre de Google viene de ahí!" },
+          { mathFact: "El número 4 es el único número en inglés que tiene el mismo número de letras que su valor (four)." },
+          { mathFact: "El número Pi (π) es infinito y sus decimales nunca se repiten. ¡Lo usamos para calcular círculos!" },
+          { mathFact: "El número 13 es considerado de mala suerte en muchas culturas, pero en otras es un número de la suerte." },
+          { mathFact: "Puedes multiplicar cualquier número por 9 y la suma de los dígitos del resultado siempre será 9 (ej. 9x3=27, 2+7=9)." },
+          { mathFact: "Los números Fibonacci son una secuencia donde cada número es la suma de los dos anteriores (0, 1, 1, 2, 3, 5, 8...). ¡Aparecen en la naturaleza!" },
+          { mathFact: "Si doblas un papel por la mitad 42 veces, sería lo suficientemente grueso como para llegar a la Luna." },
+          { mathFact: "El número 1 es el único número que no es primo ni compuesto." },
+          { mathFact: "El número 8 tumbado (∞) es el símbolo del infinito, que significa algo que no tiene fin." },
+          { mathFact: "El número 10 es la base de nuestro sistema numérico, probablemente porque tenemos 10 dedos en las manos." },
+          { mathFact: "Los fractales son patrones matemáticos que se repiten a sí mismos en diferentes escalas, ¡como los copos de nieve o los árboles!" },
+          // Página 13 (Gráfica Nivel 1) - Keep the specific graph analysis text
+          { mathFact: "Analiza la gráfica de aciertos del Nivel 1. ¿Hay alguna tabla de multiplicar (multiplicadores de un dígito) que necesites practicar más? ¿Por qué crees que ocurre esto?" },
+          // Páginas 14-25 (ejercicios Nivel 2)
+          { mathFact: "Los números triangulares se forman sumando números consecutivos (1, 1+2=3, 1+2+3=6...). ¿Puedes encontrar los siguientes?" },
+          { mathFact: "Un número cuadrado es el resultado de multiplicar un número por sí mismo (ej. 4x4=16)." },
+          { mathFact: "El 'sudoku' es un juego de lógica basado en números, donde cada fila, columna y cuadrado debe contener los números del 1 al 9 sin repetir." },
+          { mathFact: "Un 'palíndromo numérico' es un número que se lee igual de izquierda a derecha que de derecha a izquierda (ej. 121, 5445)." },
+          { mathFact: "El sistema binario solo usa dos dígitos: 0 y 1. Es el lenguaje que usan los ordenadores." },
+          { mathFact: "La probabilidad es la rama de las matemáticas que estudia la posibilidad de que ocurra un evento. ¡Es como predecir el futuro!" },
+          { mathFact: "El número 17 es el único número primo que se puede escribir como la suma de cuatro números primos consecutivos (2+3+5+7)." },
+          { mathFact: "Un 'mosaico' o 'teselado' es un patrón de formas que encajan perfectamente sin dejar huecos, ¡como en un suelo de baldosas!" },
+          { mathFact: "Los 'números amigos' son dos números en los que la suma de los divisores propios de uno es igual al otro, y viceversa." },
+          { mathFact: "El 'sistema sexagesimal' o de base 60 lo usaban los babilonios y es por eso que un minuto tiene 60 segundos y una hora 60 minutos." },
+          { mathFact: "El número 100 es el primer número que puede ser escrito como la suma de los cubos de dos números primos (2^3 + 3^3 + 5^3)." },
+          { mathFact: "La 'geometría' es la parte de las matemáticas que estudia las formas, tamaños y posiciones de las figuras." },
+          // Página 26 (Gráfica Nivel 2)
+          { mathFact: "Analiza la gráfica de aciertos del Nivel 2. ¿Qué rangos de multiplicadores de dos dígitos necesitas practicar más? ¿Qué patrones observas?" },
+          // Páginas 27-38 (ejercicios Nivel 3)
+          { mathFact: "Los números perfectos son aquellos donde la suma de sus divisores propios es igual al número mismo (ej. 6 = 1+2+3)." },
+          { mathFact: "El número más grande que tiene un nombre en inglés es el 'centillón' (un 1 seguido de 600 ceros)." },
+          { mathFact: "El 'conjunto de Mandelbrot' es un famoso fractal que produce imágenes infinitamente complejas y hermosas." },
+          { mathFact: "El 'problema de los cuatro colores' dice que cualquier mapa se puede colorear con solo cuatro colores sin que dos países vecinos tengan el mismo color." },
+          { mathFact: "El 'último teorema de Fermat' fue un problema matemático que tardó más de 350 años en ser resuelto." },
+          { mathFact: "La 'teoría de juegos' es una rama de las matemáticas que estudia cómo las personas toman decisiones en situaciones estratégicas." },
+          { mathFact: "El 'cero' fue inventado de forma independiente en varias culturas, incluyendo la india y la maya." },
+          { mathFact: "Los 'números transfinitos' son números que son 'más grandes' que el infinito. ¡Es un concepto muy avanzado!" },
+          { mathFact: "El 'principio de Dirichlet' (o principio del palomar) es una idea simple pero poderosa: si tienes más palomas que palomares, al menos un palomar debe tener más de una paloma." },
+          { mathFact: "El 'problema de Goldbach' es uno de los problemas sin resolver más antiguos en matemáticas: dice que todo número par mayor que 2 es la suma de dos números primos." },
+          { mathFact: "El 'conjunto de Julia' es otro tipo de fractal relacionado con el conjunto de Mandelbrot, ¡con formas también muy intrincadas!" },
+          { mathFact: "El 'problema de la conjetura de Poincaré' fue uno de los siete 'problemas del milenio' y fue resuelto en 2003." },
+          // Página 39 (Gráfica Nivel 3)
+          { mathFact: "Analiza la gráfica de aciertos del Nivel 3. ¿Qué rangos de multiplicadores de tres dígitos necesitas practicar más? ¿Qué patrones observas?" },
+        ];
+
+        // Número total de páginas (12 Nivel 1 + 1 gráfica + 12 Nivel 2 + 1 gráfica + 12 Nivel 3 + 1 gráfica)
+        const TOTAL_PAGES = allPagesProblems.length + 3; // 36 páginas de problemas + 3 páginas de gráficas = 39
+
+        function App() {
+          // Estado para la página actual (0-indexado)
+          const [currentPageIndex, setCurrentPageIndex] = useState(0);
+          // Nuevo estado para controlar si Recharts está cargado
+          const [rechartsLoaded, setRechartsLoaded] = useState(false);
+
+          // Determinar si la página actual es de ejercicios o de gráfica
+          // Las páginas de gráfica están en los índices 12, 25 y 38
+          const isExercisePage = currentPageIndex !== 12 && currentPageIndex !== 25 && currentPageIndex !== 38;
+          // Ajustar el índice para acceder a allPagesProblems correctamente
+          const currentProblems = isExercisePage
+            ? allPagesProblems[
+                currentPageIndex < 12 ? currentPageIndex : // Páginas 0-11 para Nivel 1
+                currentPageIndex < 25 ? currentPageIndex - 1 : // Páginas 13-24 para Nivel 2 (saltando la 12)
+                currentPageIndex - 2 // Páginas 26-37 para Nivel 3 (saltando la 12 y la 25)
+              ]
+            : [];
+
+          // Estado para almacenar las respuestas de los usuarios para la página actual
+          // Ahora userAnswers[inputKey] será un ARRAY de strings (dígitos)
+          const [userAnswers, setUserAnswers] = useState({});
+          // Estado para almacenar el feedback de cada respuesta (null, 'correct', 'incorrect') para la página actual
+          const [feedback, setFeedback] = useState({});
+          // Estado para mostrar la puntuación final de la página actual
+          const [score, setScore] = useState(null); // Este estado ahora contendrá la puntuación de 0 a 10
+          // Estado para controlar si se han comprobado todas las respuestas de la página actual
+          const [allChecked, setAllChecked] = useState(false);
+          // Nuevo estado para controlar la generación del PDF
+          const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+          // Nuevo estado para controlar el trigger de la generación del PDF después de la puntuación
+          const [triggerPdfGeneration, setTriggerPdfGeneration] = useState(false);
+
+          // Nuevo estado para rastrear el estado de cada problema para la calificación
+          // { [problemId]: { corrections: number, isCorrect: boolean } }
+          const [problemStatus, setProblemStatus] = useState({});
+
+          // Refs para los grupos de inputs de dígitos para facilitar el foco
+          const inputRefs = useRef({});
+
+          // Nuevos estados para almacenar las estadísticas de aciertos por tabla de multiplicar para los 3 niveles
+          const [level1Stats, setLevel1Stats] = useState(() => {
+            const initialStats = {};
+            for (let i = 2; i <= 9; i++) {
+              initialStats[`Tabla del ${i}`] = { correct: 0, total: 0 };
+            }
+            return initialStats;
+          });
+
+          const [level2Stats, setLevel2Stats] = useState(() => {
+            const initialStats = {};
+            for (let i = 10; i <= 99; i++) {
+              const range = getMultiplierRange(i); // Usar el helper para obtener la cadena de rango
+              if (!initialStats[range]) initialStats[range] = { correct: 0, total: 0 };
+            }
+            return initialStats;
+          });
+
+          const [level3Stats, setLevel3Stats] = useState(() => {
+            const initialStats = {};
+            for (let i = 100; i <= 999; i++) {
+              const range = getMultiplierRange(i); // Usar el helper para obtener la cadena de rango
+              if (!initialStats[range]) initialStats[range] = { correct: 0, total: 0 };
+            }
+            return initialStats;
+          });
+
+          // Estados del temporizador
+          const [startTime, setStartTime] = useState(null);
+          const [elapsedTime, setElapsedTime] = useState(0); // en milisegundos
+          const [isRunning, setIsRunning] = useState(false);
+          const [name, setName] = useState('');
+          const [date, setDate] = useState('');
+
+          // Efecto para iniciar/reiniciar el temporizador e inicializar problemStatus al cambiar de página
+          useEffect(() => {
+            const initialProblemStatus = {};
+            currentProblems.forEach(problem => {
+              initialProblemStatus[problem.id] = { corrections: 0, isCorrect: false };
+            });
+            setProblemStatus(initialProblemStatus); // Inicializar problemStatus aquí
+
+            setUserAnswers({});
+            setFeedback({});
+            setScore(null);
+            setAllChecked(false);
+
+            if (isExercisePage) { // Solo ejecutar el temporizador en páginas de ejercicios
+              setStartTime(Date.now());
+              setElapsedTime(0);
+              setIsRunning(true);
+            } else {
+              setIsRunning(false); // Detener el temporizador en páginas de gráficos
+            }
+          }, [currentPageIndex, isExercisePage, currentProblems]); // Añadida la dependencia currentProblems
+
+          // Efecto para actualizar el temporizador cada segundo
+          useEffect(() => {
+            let interval;
+            if (isRunning && startTime !== null) {
+              interval = setInterval(() => {
+                setElapsedTime(Date.now() - startTime);
+              }, 1000);
+            } else {
+              clearInterval(interval);
+            }
+            return () => clearInterval(interval);
+          }, [isRunning, startTime]);
+
+          // Efecto para disparar la generación del PDF después de que la puntuación se haya actualizado
+          useEffect(() => {
+            if (triggerPdfGeneration && score !== null) {
+              generatePdf();
+              setTriggerPdfGeneration(false); // Resetear el trigger
+            }
+          }, [triggerPdfGeneration, score]); // Depende de triggerPdfGeneration y score
+
+          // Efecto para verificar si Recharts está cargado
+          useEffect(() => {
+            // Un pequeño retraso para asegurar que window.Recharts esté disponible
+            const checkRecharts = setTimeout(() => {
+              if (window.Recharts) {
+                setRechartsLoaded(true);
+              } else {
+                console.warn("Recharts no se cargó después de un breve retraso. La gráfica podría no mostrarse.");
+              }
+            }, 500); // Esperar 500ms
+
+            return () => clearTimeout(checkRecharts);
+          }, []);
+
+
+          // Formatear el tiempo transcurrido
+          const formatTime = (ms) => {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          };
+
+          // Maneja el cambio en los campos de entrada de un dígito
+          const handleDigitChange = (inputKey, digitIndex, value, expectedNumDigits) => {
+            // Asegurarse de que el valor sea un solo dígito o vacío
+            const cleanValue = value.replace(/[^0-9]/g, '').slice(0, 1);
+
+            setUserAnswers(prevAnswers => {
+              // Obtener el array actual de dígitos para esta inputKey, o inicializarlo con cadenas vacías
+              const currentDigits = prevAnswers[inputKey] ? [...prevAnswers[inputKey]] : Array(expectedNumDigits).fill('');
+
+              // Asegurar que el array tenga la longitud esperada, rellenando con cadenas vacías si es necesario
+              while (currentDigits.length < expectedNumDigits) {
+                currentDigits.push('');
+              }
+              // Si el array es más largo de lo esperado, recortarlo
+              if (currentDigits.length > expectedNumDigits) {
+                currentDigits.splice(expectedNumDigits);
+              }
+
+              // Actualizar el dígito específico en el índice dado
+              currentDigits[digitIndex] = cleanValue;
+
+              return {
+                ...prevAnswers,
+                [inputKey]: currentDigits // Almacenar como un array ahora
+              };
+            });
+
+            // Limpiar feedback solo para la respuesta final, no para los productos parciales
+            if (!String(inputKey).includes('partial')) {
+              setFeedback(prevFeedback => ({ ...prevFeedback, [inputKey]: null }));
+              setAllChecked(false);
+              setScore(null);
+            }
+          };
+
+          // Maneja las pulsaciones de teclado para navegación entre casilleros
+          const handleDigitKeyDown = (inputKey, digitIndex, e, expectedNumDigits) => {
+            if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              const nextInput = inputRefs.current[inputKey]?.[digitIndex + 1];
+              if (nextInput) {
+                nextInput.focus();
+              }
+            } else if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              const prevInput = inputRefs.current[inputKey]?.[digitIndex - 1];
+              if (prevInput) {
+                prevInput.focus();
+              }
+            } else if (e.key === 'Backspace' && digitIndex >= 0) { // Permitir backspace también en el primer dígito
+              e.preventDefault();
+              // Borrar dígito actual
+              handleDigitChange(inputKey, digitIndex, '', expectedNumDigits);
+              // Mover el foco al anterior si no es el primer dígito
+              if (digitIndex > 0) {
+                const prevInput = inputRefs.current[inputKey]?.[digitIndex - 1];
+                if (prevInput) {
+                  prevInput.focus();
+                }
+              }
+            }
+          };
+
+          // Función para actualizar las estadísticas (usada por checkAnswer y checkAllAnswers)
+          const updateStats = (problem, isCorrect) => {
+            const multiplier = problem.num2;
+            const range = getMultiplierRange(multiplier);
+
+            if (problem.level === 1) {
+              setLevel1Stats(prevStats => {
+                const newStats = { ...prevStats };
+                if (!newStats[range]) newStats[range] = { correct: 0, total: 0 }; // Asegurar que el rango existe
+                newStats[range].total++;
+                if (isCorrect) {
+                  newStats[range].correct++;
+                }
+                return newStats;
+              });
+            } else if (problem.level === 2) {
+              setLevel2Stats(prevStats => {
+                const newStats = { ...prevStats };
+                if (!newStats[range]) newStats[range] = { correct: 0, total: 0 }; // Asegurar que el rango existe
+                newStats[range].total++;
+                if (isCorrect) {
+                  newStats[range].correct++;
+                }
+                return newStats;
+              });
+            } else if (problem.level === 3) {
+              setLevel3Stats(prevStats => {
+                const newStats = { ...prevStats };
+                if (!newStats[range]) newStats[range] = { correct: 0, total: 0 }; // Asegurar que el rango existe
+                newStats[range].total++;
+                if (isCorrect) {
+                  newStats[range].correct++;
+                }
+                return newStats;
+              });
+            }
+          };
+
+          // Comprueba una respuesta individual
+          const checkAnswer = (id) => {
+            const problem = currentProblems.find(p => p.id === id);
+            const userAnswerString = (userAnswers[id] || []).join('').replace(/\s/g, '');
+            const parsedUserAnswer = parseInt(userAnswerString);
+            const isCorrect = parsedUserAnswer === problem.answer;
+
+            setFeedback(prevFeedback => ({ ...prevFeedback, [id]: isCorrect ? 'correct' : 'incorrect' }));
+
+            setProblemStatus(prevStatus => {
+              const newStatus = { ...prevStatus };
+              if (!newStatus[id]) {
+                newStatus[id] = { corrections: 0, isCorrect: false };
+              }
+
+              // Incrementar correcciones solo si la respuesta enviada es incorrecta
+              // y el problema no estaba ya marcado como correcto en su última comprobación.
+              if (!isCorrect && newStatus[id].isCorrect === false) {
+                newStatus[id].corrections++;
+              }
+              newStatus[id].isCorrect = isCorrect; // Actualizar el estado de corrección actual
+              return newStatus;
+            });
+          };
+
+          // Comprueba todas las respuestas y calcula la puntuación
+          const checkAllAnswers = () => {
+            let finalScore = 10;
+            const newFeedback = {};
+            let correctCount = 0;
+            const updatedProblemStatus = { ...problemStatus }; // Copia el estado actual para las actualizaciones
+
+            currentProblems.forEach(problem => {
+              const userAnswerString = (userAnswers[problem.id] || []).join('').replace(/\s/g, '');
+              const parsedUserAnswer = parseInt(userAnswerString);
+              const isCorrect = parsedUserAnswer === problem.answer;
+
+              newFeedback[problem.id] = isCorrect ? 'correct' : 'incorrect';
+              if (isCorrect) {
+                correctCount++;
+              }
+
+              // Actualizar el estado del problema en el objeto temporal
+              if (!updatedProblemStatus[problem.id]) {
+                updatedProblemStatus[problem.id] = { corrections: 0, isCorrect: false };
+              }
+              // Incrementar correcciones si es incorrecto y no estaba ya marcado como correcto
+              if (!isCorrect && updatedProblemStatus[problem.id].isCorrect === false) {
+                  updatedProblemStatus[problem.id].corrections++;
+              }
+              updatedProblemStatus[problem.id].isCorrect = isCorrect; // Establecer el estado de corrección final
+            });
+
+            // Ahora, calcular la puntuación basándose en el problemStatus *actualizado*
+            currentProblems.forEach(problem => {
+              const status = updatedProblemStatus[problem.id]; // Usar el estado actualizado
+
+              if (!status.isCorrect) { // Si la respuesta final es incorrecta
+                finalScore -= 1;
+              } else { // Si la respuesta final es correcta
+                // Restar 0.25 por cada vez que se envió una respuesta incorrecta para este problema
+                finalScore -= 0.25 * status.corrections;
+              }
+
+              // Actualizar estadísticas globales (level1Stats, etc.) basándose en la corrección final
+              updateStats(problem, status.isCorrect);
+            });
+
+            // Asegurar que la puntuación no baje de 0
+            finalScore = Math.max(0, finalScore);
+
+            setFeedback(newFeedback);
+            setProblemStatus(updatedProblemStatus); // Establecer el estado actualizado
+            setScore(finalScore); // Establecer la puntuación final calculada
+            setAllChecked(true);
+            setIsRunning(false); // Detener el temporizador cuando todas las respuestas son comprobadas
+          };
+
+          const handleDeliver = () => { // Ya no es async aquí, solo establece el trigger
+            setIsRunning(false); // Stop the timer
+            setElapsedTime(Date.now() - startTime); // Ensure final time is captured
+            checkAllAnswers(); // Also check answers when delivering
+            setTriggerPdfGeneration(true); // Activar el trigger para generar el PDF
+          };
+
+          const generatePdf = async () => { // Función separada para la generación del PDF
+            setIsGeneratingPdf(true); // Iniciar el indicador de carga
+
+            // Obtener el elemento a capturar (el div de contenido principal)
+            const input = document.querySelector('.max-w-4xl');
+
+            // Usar html2canvas para capturar el elemento
+            try {
+              const canvas = await html2canvas(input, { scale: 2 }); // Escala aumentada para mejor calidad
+              const imgData = canvas.toDataURL('image/png');
+              const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4'); // 'p' para retrato, 'mm' para unidades, 'a4' para tamaño
+
+              const imgWidth = 210; // Ancho A4 en mm
+              const pageHeight = 297; // Alto A4 en mm
+              const imgHeight = canvas.height * imgWidth / canvas.width; // Calcular la altura de la imagen en mm basándose en el ancho A4
+
+              let heightLeft = imgHeight;
+              let position = 0; // Posición Y inicial en la página del PDF
+
+              // Margen superior aumentado para una mejor visibilidad
+              const pdfTopMargin = 30; // mm
+              const pdfBottomMargin = 10; // mm
+              const usablePageHeight = pageHeight - pdfTopMargin - pdfBottomMargin;
+
+              // Primera página
+              pdf.addImage(imgData, 'PNG', 0, pdfTopMargin, imgWidth, imgHeight); // Empezar con margen superior
+              heightLeft -= usablePageHeight; // Reducir la altura restante por la altura de página utilizable
+
+              // Para páginas subsiguientes
+              let pageNum = 1;
+              while (heightLeft > -imgHeight) { // Continuar mientras quede contenido por dibujar
+                position = -(usablePageHeight * pageNum) + pdfTopMargin; // Calcular el desplazamiento Y negativo para la siguiente porción
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= usablePageHeight;
+                pageNum++;
+              }
+
+              // Generar nombre de archivo
+              const studentName = name.replace(/[^a-zA-Z0-9]/g, '_') || 'anonimo';
+              const exerciseDate = date || new Date().toISOString().slice(0, 10);
+              const filename = `Hoja_Multiplicacion_${studentName}_${exerciseDate}.pdf`;
+
+              pdf.save(filename);
+            } catch (error) {
+              console.error("Error generando PDF:", error);
+              // Opcionalmente, mostrar un mensaje de error al usuario
+            } finally {
+              setIsGeneratingPdf(false); // Asegurar que el indicador de carga se reinicia
+            }
+          };
+
+          // Navegación de páginas
+          const goToPreviousPage = () => {
+            setCurrentPageIndex(prevIndex => Math.max(0, prevIndex - 1));
+          };
+
+          const goToNextPage = () => {
+            setCurrentPageIndex(prevIndex => Math.min(TOTAL_PAGES - 1, prevIndex + 1));
+          };
+
+          // Preparar datos para la gráfica según la página actual
+          const getChartData = () => {
+            let statsToUse = {};
+            let title = "";
+            // Las páginas de gráfica ahora son 13, 26 y 39 (índices 12, 25 y 38)
+            if (currentPageIndex === 12) { // Página 13 (Gráfica Nivel 1)
+              statsToUse = level1Stats;
+              title = "Porcentaje de Aciertos por Tabla de Multiplicar (Nivel 1)";
+            } else if (currentPageIndex === 25) { // Página 26 (Gráfica Nivel 2)
+              statsToUse = level2Stats;
+              title = "Porcentaje de Aciertos por Tabla de Multiplicar (Nivel 2)";
+            } else if (currentPageIndex === 38) { // Página 39 (Gráfica Nivel 3)
+              statsToUse = level3Stats;
+              title = "Porcentaje de Aciertos por Tabla de Multiplicar (Nivel 3)";
+            } else {
+              return { data: [], title: "" }; // No hay gráfica en páginas de ejercicios
+            }
+
+            const data = Object.keys(statsToUse)
+              .map(range => {
+                const stats = statsToUse[range];
+                const successPercentage = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
+                return {
+                  name: range,
+                  'Porcentaje de Aciertos': parseFloat(successPercentage.toFixed(2)),
+                };
+              })
+              .sort((a, b) => {
+                // Ordenar por el número inicial del rango para una mejor visualización
+                const valA = a.name.includes('Tabla del') ? parseInt(a.name.split(' ')[2]) : parseInt(a.name.split('-')[0]);
+                const valB = b.name.includes('Tabla del') ? parseInt(b.name.split(' ')[2]) : parseInt(b.name.split('-')[0]);
+                return valB - valA; // Ordenar de mayor a menor para que las tablas con más errores estén al principio
+              });
+              return { data, title };
+          };
+
+          const { data: chartData, title: chartTitle } = getChartData();
+
+          return (
+            <div className="min-h-screen bg-gray-50 font-sans text-gray-800 p-4 sm:p-8 flex items-center justify-center">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg w-full max-w-4xl relative">
+                {/* Texto "GOTA EDUCATIVA" en el margen derecho, girado 90 grados */}
+                <div className="absolute top-1/2 right-[-3rem] transform -translate-y-1/2 rotate-90 text-sm sm:text-base font-bold text-gray-500">
+                  GOTA EDUCATIVA
+                </div>
+
+                {/* Título principal */}
+                <h1 className="text-xl sm:text-2xl font-extrabold text-center text-blue-700 mb-4 sm:mb-6 mt-0">
+                  MULTIPLICO UNIDADES, DECENAS Y CENTENAS
+                </h1>
+
+                {/* Contenido condicional para la página de ejercicios o la página de la gráfica */}
+                {isExercisePage ? (
+                  <>
+                    {/* Campos de Nombre y Fecha */}
+                    <div className="flex flex-col sm:flex-row justify-end items-center gap-3 mb-6 pt-1">
+                      <div className="flex items-center gap-1">
+                        <label htmlFor="student-name" className="font-semibold text-gray-700 text-sm">Nombre:</label>
+                        <input
+                          type="text"
+                          id="student-name"
+                          className="p-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="Tu nombre"
+                          aria-label="Nombre del estudiante"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <label htmlFor="exercise-date" className="font-semibold text-gray-700 text-sm">Fecha:</label>
+                        <input
+                          type="date"
+                          id="exercise-date"
+                          className="p-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
+                          value={date}
+                          onChange={(e) => setDate(e.target.value)}
+                          aria-label="Fecha del ejercicio"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Instrucciones de la página de ejercicios */}
+                    <p className="text-sm sm:text-base text-center mb-6 px-2">
+                      Resuelve las siguientes multiplicaciones utilizando tus conocimientos y métodos.
+                    </p>
+
+                    {/* Contenedor de ejercicios */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6 mb-6">
+                      {currentProblems.map((problem) => {
+                        // Determine max digits for alignment (max of num1, num2, and answer)
+                        const maxDigits = Math.max(
+                          problem.num1Str.length,
+                          problem.num2Str.length + 1, // +1 for 'x'
+                          String(problem.answer).length,
+                          // For partial products, consider the largest possible partial product + its shift
+                          problem.num2Str.length > 1 ? String(problem.num1 * parseInt(problem.num2Str[0])).length + (problem.num2Str.length - 1) : 0
+                        );
+                        // The width of each digit box
+                        const DIGIT_BOX_WIDTH = 28; // px
+                        const problemDisplayWidth = maxDigits * DIGIT_BOX_WIDTH + 8; // Extra padding
+
+                        return (
+                          <div key={problem.id} className="flex flex-col items-center p-3 bg-gray-50 rounded-xl shadow-inner border border-gray-200 relative">
+                            <span className="text-lg sm:text-xl font-bold text-blue-600 mb-1">{problem.id}.</span>
+                            <div className="text-base sm:text-lg font-medium text-gray-700 font-mono flex flex-col items-end" style={{ width: `${problemDisplayWidth}px` }}>
+                              {/* Display num1 */}
+                              <p className="pr-1">{problem.num1}</p>
+                              {/* Display num2 with 'x' */}
+                              <p className="border-b border-gray-400 pb-1 relative w-full flex justify-end items-center">
+                                <span className="absolute left-0 text-lg font-bold">x</span> {problem.num2}
+                              </p>
+                            </div>
+
+                            {/* Intermediate steps and final answer inputs */}
+                            <div className="mt-1 flex flex-col items-end" style={{ width: `${problemDisplayWidth}px` }}>
+                              {/* Partial products rows - ONLY RENDER IF num2 has more than 1 digit */}
+                              {problem.num2Str.length > 1 && (
+                                <>
+                                  {problem.num2Str.split('').reverse().map((digit, rowIndex) => {
+                                    const partialProduct = problem.num1 * parseInt(digit);
+                                    const partialProductStr = String(partialProduct);
+                                    const numBoxes = partialProductStr.length;
+                                    const shiftLeft = rowIndex; // Number of empty boxes to the right
+
+                                    return (
+                                      <div key={`partial-${problem.id}-${rowIndex}`} className="flex justify-end w-full" style={{ paddingRight: `${shiftLeft * DIGIT_BOX_WIDTH}px` }}>
+                                        {Array(numBoxes).fill(null).map((_, digitIndex) => (
+                                          <input
+                                            key={`${problem.id}-partial-${rowIndex}-${digitIndex}`}
+                                            ref={el => {
+                                              if (!inputRefs.current[`partial-${problem.id}-${rowIndex}`]) {
+                                                inputRefs.current[`partial-${problem.id}-${rowIndex}`] = {};
+                                              }
+                                              inputRefs.current[`partial-${problem.id}-${rowIndex}`][digitIndex] = el;
+                                            }}
+                                            type="text"
+                                            maxLength="1"
+                                            className={`w-7 h-7 text-base text-center font-semibold border border-gray-400 focus:outline-none focus:ring-1 font-mono`}
+                                            value={userAnswers[`partial-${problem.id}-${rowIndex}`] ? userAnswers[`partial-${problem.id}-${rowIndex}`][digitIndex] || '' : ''}
+                                            onChange={(e) => handleDigitChange(`partial-${problem.id}-${rowIndex}`, digitIndex, e.target.value, numBoxes)}
+                                            onKeyDown={(e) => handleDigitKeyDown(`partial-${problem.id}-${rowIndex}`, digitIndex, e, numBoxes)}
+                                          />
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* Plus sign and sum line (only if more than one partial product) */}
+                                  <div className="w-full flex justify-end items-center border-b border-gray-400 pb-1 mt-1 relative">
+                                    <span className="absolute left-0 text-lg font-bold">+</span>
+                                    <div className="flex-grow"></div> {/* Spacer */}
+                                  </div>
+                                </>
+                              )}
+
+
+                              {/* Final answer row */}
+                              <div className="flex justify-end mt-1 w-full">
+                                {Array(String(problem.answer).length).fill(null).map((_, index) => (
+                                  <input
+                                    key={`${problem.id}-final-${index}`}
+                                    ref={el => {
+                                      if (!inputRefs.current[problem.id]) {
+                                        inputRefs.current[problem.id] = {};
+                                      }
+                                      inputRefs.current[problem.id][index] = el; // Store directly under problem.id for final answer
+                                    }}
+                                    type="text"
+                                    maxLength="1"
+                                    className={`w-7 h-7 text-base text-center font-semibold border border-gray-400 focus:outline-none focus:ring-1 font-mono
+                                      ${feedback[problem.id] === 'correct' ? 'border-green-500 bg-green-50 focus:ring-green-300' : ''}
+                                      ${feedback[problem.id] === 'incorrect' ? 'border-red-500 bg-red-50 focus:ring-red-300' : ''}
+                                      ${feedback[problem.id] === null ? 'focus:border-blue-500 focus:ring-blue-200' : ''}
+                                    `}
+                                    // Value now comes from the array in userAnswers
+                                    value={userAnswers[problem.id] && userAnswers[problem.id][index] !== undefined ? userAnswers[problem.id][index] : ''}
+                                    onChange={(e) => handleDigitChange(problem.id, index, e.target.value, String(problem.answer).length)}
+                                    onKeyDown={(e) => handleDigitKeyDown(problem.id, index, e, String(problem.answer).length)}
+                                    placeholder=""
+                                    aria-label={`Dígito ${index + 1} de la respuesta para ${problem.num1} x ${problem.num2}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            {/* Feedback icons positioned relative to the problem container */}
+                            {feedback[problem.id] === 'correct' && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xl text-green-600">✓</span>
+                            )}
+                            {feedback[problem.id] === 'incorrect' && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xl text-red-600">✗</span>
+                            )}
+                            <button
+                              onClick={() => checkAnswer(problem.id)}
+                              className="mt-3 px-3 py-1.5 bg-blue-500 text-white font-semibold rounded-full shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all duration-200 ease-in-out transform hover:scale-105 text-sm"
+                            >
+                              Comprobar
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Botones de acción y temporizador */}
+                    <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mt-6">
+                      <button
+                        onClick={checkAllAnswers}
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold text-base rounded-full shadow-xl hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all duration-300 ease-in-out transform hover:scale-105"
+                      >
+                        Comprobar todas las respuestas
+                      </button>
+                      <button
+                        onClick={handleDeliver}
+                        className="px-6 py-2.5 bg-green-600 text-white font-bold text-base rounded-full shadow-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300 ease-in-out transform hover:scale-105"
+                      >
+                        Entregar
+                      </button>
+                    </div>
+
+                    {/* Temporizador */}
+                    <div className="mt-4 text-center text-lg font-bold text-gray-800">
+                      Tiempo transcurrido: <span className="text-purple-700">{formatTime(elapsedTime)}</span>
+                    </div>
+
+                    {/* Puntuación final */}
+                    {score !== null && (
+                      <div className="mt-3 text-center text-xl sm:text-2xl font-bold">
+                        <p className="text-gray-900">
+                          ¡Tu puntuación final es: <span className="text-purple-600">{score.toFixed(2)}</span> / 10!
+                        </p>
+                        {score === 10 && (
+                          <p className="text-green-600 mt-1">¡Excelente trabajo!</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Contenido para la página de la gráfica (Página 13, 26 o 39) */
+                  <div className="mt-8">
+                    <h2 className="text-xl sm:text-2xl font-bold text-center text-blue-700 mb-6">
+                      {chartTitle}
+                    </h2>
+                    {rechartsLoaded ? (
+                        <div className="w-full h-80 sm:h-96">
+                          <window.Recharts.ResponsiveContainer width="100%" height="100%">
+                            <window.Recharts.BarChart
+                              data={chartData}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 5,
+                              }}
+                            >
+                              <window.Recharts.CartesianGrid strokeDasharray="3 3" />
+                              <window.Recharts.XAxis dataKey="name" interval={0} angle={-45} textAnchor="end" height={80} />
+                              <window.Recharts.YAxis label={{ value: 'Porcentaje de Aciertos', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
+                              <window.Recharts.Tooltip formatter={(value) => `${value}%`} />
+                              <window.Recharts.Legend />
+                              <window.Recharts.Bar dataKey="Porcentaje de Aciertos" fill="#4CAF50" />
+                            </window.Recharts.BarChart>
+                          </window.Recharts.ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <p className="text-center text-gray-600">Cargando gráfica...</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Sección de Dato Curioso */}
+                <div className="mt-8 pt-4 border-t-2 border-gray-200 space-y-4">
+                  <div className="flex items-start bg-yellow-50 p-3 rounded-xl shadow-sm border border-yellow-200">
+                    <span className="text-2xl mr-3">💡</span>
+                    <div>
+                      <h3 className="font-bold text-base text-yellow-800 mb-0.5">¿SABÍAS QUE...?</h3>
+                      <p className="text-sm text-gray-700">
+                        {pageSpecificContent[currentPageIndex].mathFact}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controles de paginación */}
+                <div className="flex justify-between items-center mt-6 pt-3 border-t border-gray-200">
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPageIndex === 0}
+                    className="px-5 py-2 bg-gray-300 text-gray-800 font-semibold rounded-full shadow-md hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out transform hover:scale-105 text-sm"
+                  >
+                    Página Anterior
+                  </button>
+                  <span className="text-base font-bold text-gray-700">
+                    Página {currentPageIndex + 1} de {TOTAL_PAGES}
+                  </span>
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPageIndex === TOTAL_PAGES - 1}
+                    className="px-5 py-2 bg-blue-500 text-white font-semibold rounded-full shadow-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out transform hover:scale-105 text-sm"
+                  >
+                    Página Siguiente
+                  </button>
+                </div>
+
+                {/* Número de página */}
+                <div className="absolute bottom-3 right-5 text-xs text-gray-500">
+                  {currentPageIndex + 1}
+                </div>
+
+                {/* Loading indicator para la generación de PDF */}
+                {isGeneratingPdf && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <p className="text-gray-800">Generando PDF...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // Render the React component SOLAMENTE cuando el DOM esté completamente cargado
+        // Script colocado al final del body para asegurar que el #root div ya existe
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
